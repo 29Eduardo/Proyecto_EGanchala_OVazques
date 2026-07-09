@@ -111,17 +111,12 @@ Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distrib
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/<usuario>/<repositorio>.git
-cd <repositorio>
+https://github.com/29Eduardo/Proyecto_EGanchala_OVazques.git
 
-# 2. Configurar variables de entorno
-cp .env.example .env
-# completar .env con las credenciales necesarias
-
-# 3. Levantar toda la infraestructura
+# 2. Levantar toda la infraestructura
 docker compose up -d --build
 
-# 4. Verificar que todos los contenedores estén corriendo
+# 3. Verificar que todos los contenedores estén corriendo
 docker compose ps
 ```
 
@@ -194,8 +189,8 @@ La infraestructura completa está desplegada en un servidor con Docker Compose (
 
 | Integrante | Rol | GitHub |
 |---|---|---|
-| [Nombre integrante 1] | Backend + Base de datos | [@usuario1](https://github.com/usuario1) |
-| [Nombre integrante 2] | Infraestructura + Despliegue | [@usuario2](https://github.com/usuario2) |
+| Eduardo Ganchala | Backend + Base de datos | 29Eduardo(https://github.com/usuario1) |
+| Oscar Vasquez | Infraestructura + Despliegue | [@usuario2](https://github.com/usuario2) |
 
 **Asignatura:** Aplicaciones Distribuidas — **Profesora:** Ing. Vanessa Guevara — **Período:** 2026-A
 
