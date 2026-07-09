@@ -189,7 +189,7 @@ La infraestructura completa está desplegada en un servidor con Docker Compose (
 
 | Integrante | Rol | GitHub |
 |---|---|---|
-| Eduardo Ganchala | Backend + Base de datos | 29Eduardo(https://github.com/usuario1) |
+| Eduardo Ganchala | Backend + Base de datos | 29Eduardo(https://github.com/29Eduardo) |
 | Oscar Vasquez | Infraestructura + Despliegue | [@usuario2](https://github.com/usuario2) |
 
 **Asignatura:** Aplicaciones Distribuidas — **Profesora:** Ing. Vanessa Guevara — **Período:** 2026-A
