@@ -48,11 +48,11 @@ Proyecto final — Aplicaciones Distribuidas, Escuela Politécnica Nacional, 202
                  └──────┬─────┴──────┬────┘
                          ▼            
                  ┌───────────────┐   ┌────────────────┐
-                 │  MySQL Master │──▶│  MySQL Replica  │
+                 │  MySQL Master │──▶│  MySQL Replica │
                  └───────┬───────┘   └────────────────┘
                          ▲
                  ┌───────┴───────┐
-                 │    Adminer     │  interfaz web para la BD
+                 │    Adminer    │  interfaz web para la BD
                  └───────────────┘
 ```
 
