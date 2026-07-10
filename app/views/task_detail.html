@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }} · TaskHub{% endblock %}
+{% block content %}
+<a href="/tasks" class="link-muted back-link">&larr; Volver a mis tareas</a>
+
+<span class="task-code">{{ task.code }}</span>
+<h1>{{ task.title }}</h1>
+<p class="subtitle">{{ task.description }}</p>
+<p class="due-date">Fecha y hora límite: <strong>{{ task.due_datetime.strftime("%d/%m/%Y %H:%M") }}</strong></p>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if submission %}
+    <div class="submission-box">
+        <p class="eyebrow">Tu entrega</p>
+        <h2>{{ task.title }}</h2>
+        <p class="submission-text">{{ submission.response_text }}</p>
+        <p class="submission-date">Enviada el {{ submission.submitted_at.strftime("%d/%m/%Y %H:%M") }}</p>
+    </div>
+{% elif now > task.due_datetime %}
+    <div class="alert alert-warning">El plazo de entrega para esta tarea ya venció. No puedes enviar una respuesta.</div>
+{% else %}
+    <form method="post" action="/tasks/{{ task.id }}/submit" class="form">
+        <label for="response_text">Tu respuesta</label>
+        <textarea id="response_text" name="response_text" rows="8" placeholder="Escribe aquí tu entrega..." required></textarea>
+        <button type="submit" class="btn-primary">Enviar entrega</button>
+    </form>
+{% endif %}
+{% endblock %}

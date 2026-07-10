@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Mis tareas · TaskHub{% endblock %}
+{% block content %}
+<p class="eyebrow">Hola, {{ student.full_name.split(" ")[0] }}</p>
+<h1>Tareas disponibles</h1>
+<p class="subtitle">Consulta el detalle de cada tarea y realiza tu entrega antes del plazo límite.</p>
+
+<div class="task-grid">
+    {% for tv in task_views %}
+    <a class="task-card urgency-{{ tv.urgency }}" href="/tasks/{{ tv.task.id }}">
+        <span class="task-code">{{ tv.task.code }}</span>
+        <h2>{{ tv.task.title }}</h2>
+        <p class="task-desc">{{ tv.task.description }}</p>
+        <div class="task-meta">
+            <span>Límite: {{ tv.task.due_datetime.strftime("%d/%m/%Y %H:%M") }}</span>
+            {% if tv.is_submitted %}
+                <span class="status-tag status-done">Entregada</span>
+            {% elif tv.is_overdue %}
+                <span class="status-tag status-overdue">Plazo vencido</span>
+            {% elif tv.urgency == "soon" %}
+                <span class="status-tag status-soon">Vence pronto</span>
+            {% else %}
+                <span class="status-tag status-ok">Vigente</span>
+            {% endif %}
+        </div>
+    </a>
+    {% else %}
+    <p class="empty-state">Todavía no hay tareas registradas.</p>
+    {% endfor %}
+</div>
+{% endblock %}

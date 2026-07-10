@@ -1,0 +1,112 @@
+services:
+  # ---------- Aplicación web (3 nodos idénticos) ----------
+  app1:
+    build: ./app
+    container_name: app1
+    environment:
+      - NODE_NAME=app1
+      - DB_HOST=mysql-master
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      - mysql-master
+    networks:
+      - backend
+
+  app2:
+    build: ./app
+    container_name: app2
+    environment:
+      - NODE_NAME=app2
+      - DB_HOST=mysql-master
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      - mysql-master
+    networks:
+      - backend
+
+  app3:
+    build: ./app
+    container_name: app3
+    environment:
+      - NODE_NAME=app3
+      - DB_HOST=mysql-master
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      - mysql-master
+    networks:
+      - backend
+
+  # ---------- Balanceador de carga ----------
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - app1
+      - app2
+      - app3
+    networks:
+      - backend
+
+  # ---------- Base de datos: maestro + réplica ----------
+  mysql-master:
+    image: mysql:8.0
+    container_name: mysql-master
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - master_data:/var/lib/mysql
+      - ./mysql/master/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./mysql/master/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - backend
+
+  mysql-slave:
+    image: mysql:8.0
+    container_name: mysql-slave
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - slave_data:/var/lib/mysql
+      - ./mysql/slave/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    depends_on:
+      - mysql-master
+    networks:
+      - backend
+
+  # ---------- Interfaz web para la base de datos ----------
+  adminer:
+    image: adminer
+    container_name: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql-master
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  master_data:
+  slave_data:

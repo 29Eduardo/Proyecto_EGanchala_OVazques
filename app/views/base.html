@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TaskHub{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" href="/tasks">TaskHub</a>
+        {% if student %}
+        <nav class="topbar-nav">
+            <span class="user-pill">{{ student.full_name }}</span>
+            <a href="/logout" class="link-muted">Cerrar sesión</a>
+        </nav>
+        {% endif %}
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <span>Aplicaciones Distribuidas · EPN 2026-A</span>
+        <span class="node-badge">servido por <strong>{{ node }}</strong></span>
+    </footer>
+</body>
+</html>
