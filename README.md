@@ -187,7 +187,7 @@ La infraestructura completa está desplegada en un servidor con Docker Compose (
   
 ## Equipo
 
-| Integrante| GitHub |
+| Integrante | GitHub |
 |---|---|---|
 | Eduardo Ganchala | 29Eduardo(https://github.com/29Eduardo) |
 | Oscar Vasquez  | xOscar(https://github.com/Oscar-byte-c) |
