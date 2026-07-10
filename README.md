@@ -83,22 +83,32 @@ Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distrib
 
 ```
 .
-├── app/                    # Código fuente de la aplicación web
-│   ├── main.py
-│   ├── models.py
-│   ├── templates/
-│   └── requirements.txt
+├── app/                     # Código fuente de la aplicación web (Python/FastAPI)
+│   ├── main.py              # Rutas: login, tareas, entrega, health
+│   ├── models.py            # Modelos SQLAlchemy (Student, Task, Submission)
+│   ├── database.py          # Conexión a MySQL vía variables de entorno
+│   ├── seed.py               # Datos de prueba (estudiante + tareas)
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── views/                # Plantillas Jinja2
+│   │   ├── base.html
+│   │   ├── login.html
+│   │   ├── tasks.html
+│   │   └── task_detail.html
+│   └── static/
+│       └── style.css
 ├── nginx/
-│   └── nginx.conf          # Configuración del balanceador (pesos)
+│   └── nginx.conf           # Configuración del balanceador (pesos)
 ├── mysql/
 │   ├── master/my.cnf
 │   └── slave/my.cnf
-├── locust/
-│   └── locustfile.py       # Script de pruebas de carga
+├── tests/
+│   └── load-test.py         # Script de pruebas de carga
 ├── docs/
-│   └── informe_tecnico.pdf # Informe técnico del proyecto
+│   └── informe-tecnico.md   # Informe técnico del proyecto
 ├── docker-compose.yml
-├── .env.example
+├── .env
+├── .gitignore
 └── README.md
 ```
 
