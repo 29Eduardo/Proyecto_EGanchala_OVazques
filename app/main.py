@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -16,8 +16,18 @@ from models import Student, Task, Submission
 NODE_NAME = os.getenv("NODE_NAME", "app-desconocido")
 SECRET_KEY = os.getenv("SECRET_KEY", "cambia-esta-clave-en-produccion")
 
-# Crea las tablas si no existen (idempotente; en producción usar Alembic)
-Base.metadata.create_all(bind=engine)
+# Crea las tablas si no existen (idempotente; en producción usar Alembic).
+#
+# Como los 3 nodos (app1/app2/app3) arrancan casi al mismo tiempo, es normal
+# que más de uno intente crear las mismas tablas simultáneamente. MySQL solo
+# deja que uno lo logre y a los demás les responde "ya existe" (error 1050);
+# eso NO es un fallo real, así que lo ignoramos en vez de dejar que tumbe el
+# contenedor.
+try:
+    Base.metadata.create_all(bind=engine)
+except OperationalError as e:
+    if "1050" not in str(e) and "already exists" not in str(e):
+        raise
 
 app = FastAPI(title="TaskHub")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)

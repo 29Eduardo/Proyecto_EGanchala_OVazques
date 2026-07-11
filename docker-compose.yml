@@ -12,7 +12,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - mysql-master
+      mysql-master:
+        condition: service_healthy
     networks:
       - backend
 
@@ -28,7 +29,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - mysql-master
+      mysql-master:
+        condition: service_healthy
     networks:
       - backend
 
@@ -44,7 +46,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - mysql-master
+      mysql-master:
+        condition: service_healthy
     networks:
       - backend
 
@@ -65,7 +68,7 @@ services:
 
   # ---------- Base de datos: maestro + réplica ----------
   mysql-master:
-    image: mysql:8.0
+    build: ./mysql/master
     container_name: mysql-master
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -74,21 +77,25 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - master_data:/var/lib/mysql
-      - ./mysql/master/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
-      - ./mysql/master/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - backend
 
   mysql-slave:
-    image: mysql:8.0
+    build: ./mysql/slave
     container_name: mysql-slave
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
       - slave_data:/var/lib/mysql
-      - ./mysql/slave/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     depends_on:
-      - mysql-master
+      mysql-master:
+        condition: service_healthy
     networks:
       - backend
 
