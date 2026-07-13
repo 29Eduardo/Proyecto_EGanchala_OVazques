@@ -1,0 +1,19 @@
+-- Este archivo se genera a partir de este template durante el build de la
+-- imagen (ver Dockerfile), reemplazando __DB_USER__ / __DB_PASSWORD__ /
+-- __DB_NAME__ con los valores del .env. Se ejecuta automáticamente la
+-- primera vez que el volumen de este nodo está vacío.
+
+-- Usuario de replicación: permite que el MAESTRO se conecte a ESTE nodo
+-- para leer sus cambios (replicación bidireccional). Debe coincidir con
+-- el usuario 'repl' que ya crea mysql/master/init.sql en el maestro.
+CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'replpass';
+GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
+
+-- Usuario de la aplicación: en el maestro se crea automáticamente vía las
+-- variables MYSQL_USER/MYSQL_PASSWORD de la imagen oficial, pero esa
+-- creación ocurre en la base `mysql` (tabla de usuarios), la cual NO se
+-- replica (ver binlog_do_db=taskdb). Por eso hay que crearlo también aquí.
+CREATE USER IF NOT EXISTS '__DB_USER__'@'%' IDENTIFIED WITH mysql_native_password BY '__DB_PASSWORD__';
+GRANT ALL PRIVILEGES ON __DB_NAME__.* TO '__DB_USER__'@'%';
+
+FLUSH PRIVILEGES;

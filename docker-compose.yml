@@ -87,18 +87,44 @@ services:
       - backend
 
   mysql-slave:
-    build: ./mysql/slave
+    build:
+      context: ./mysql/slave
+      args:
+          DB_USER: ${DB_USER}
+          DB_PASSWORD: ${DB_PASSWORD}
+          DB_NAME: ${DB_NAME}
     container_name: mysql-slave
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
       - slave_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     depends_on:
       mysql-master:
         condition: service_healthy
     networks:
       - backend
 
+  replica-setup:
+    image: mysql:8.0
+    container_name: replica-setup
+    environment:
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - ./mysql/replica-setup.sh:/replica-setup.sh:ro
+    entrypoint: ["sh", "/replica-setup.sh"]
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave:
+       condition: service_healthy
+    networks:
+      - backend
   # ---------- Interfaz web para la base de datos ----------
   adminer:
     image: adminer
