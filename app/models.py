@@ -1,3 +1,4 @@
+"""Modelos de la base de datos: estudiantes, tareas y entregas."""
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
@@ -11,6 +12,7 @@ class Student(Base):
     full_name = Column(String(120), nullable=False)
     email = Column(String(120), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, default="student")  # "student" o "teacher"
 
     submissions = relationship("Submission", back_populates="student")
 

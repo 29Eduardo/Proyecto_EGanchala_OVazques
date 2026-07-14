@@ -19,8 +19,19 @@ if not db.query(Student).filter(Student.email == "demo@epn.edu.ec").first():
         full_name="Estudiante Demo",
         email="demo@epn.edu.ec",
         password_hash=password_hash,
+        role="student",
     ))
     print("Estudiante demo creado -> demo@epn.edu.ec / 123456")
+
+if not db.query(Student).filter(Student.email == "profesor@epn.edu.ec").first():
+    password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+    db.add(Student(
+        full_name="Profesor Demo",
+        email="profesor@epn.edu.ec",
+        password_hash=password_hash,
+        role="teacher",
+    ))
+    print("Cuenta de profesor creada -> profesor@epn.edu.ec / 123456")
 
 if not db.query(Task).filter(Task.code == "TSK-001").first():
     db.add(Task(

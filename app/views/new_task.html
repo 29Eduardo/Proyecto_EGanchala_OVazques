@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Nueva tarea · TaskHub{% endblock %}
+{% block content %}
+<a href="/tasks" class="link-muted back-link">&larr; Volver a tareas</a>
+
+<p class="eyebrow">Panel del profesor</p>
+<h1>Crear nueva tarea</h1>
+<p class="subtitle">Esta tarea aparecerá de inmediato en el listado de todos los estudiantes.</p>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/tasks/new" class="form">
+    <label for="code">Código</label>
+    <input type="text" id="code" name="code" placeholder="TSK-003" value="{{ code or '' }}" required>
+
+    <label for="title">Título</label>
+    <input type="text" id="title" name="title" placeholder="Título de la tarea" value="{{ title or '' }}" required>
+
+    <label for="description">Descripción</label>
+    <textarea id="description" name="description" rows="5" placeholder="Instrucciones para el estudiante" required>{{ description or '' }}</textarea>
+
+    <label for="due_datetime">Fecha y hora límite</label>
+    <input type="datetime-local" id="due_datetime" name="due_datetime" value="{{ due_datetime or '' }}" required>
+
+    <button type="submit" class="btn-primary">Publicar tarea</button>
+</form>
+{% endblock %}
