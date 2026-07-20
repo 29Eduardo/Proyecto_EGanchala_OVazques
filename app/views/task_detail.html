@@ -19,6 +19,19 @@
         <p class="submission-text">{{ submission.response_text }}</p>
         <p class="submission-date">Enviada el {{ submission.submitted_at.strftime("%d/%m/%Y %H:%M") }}</p>
     </div>
+{% elif student.role == "teacher" %}
+    <p class="eyebrow">Entregas de estudiantes ({{ all_submissions|length }})</p>
+    {% if all_submissions %}
+        {% for s in all_submissions %}
+        <div class="submission-box" style="margin-bottom: 14px;">
+            <h2>{{ s.student.full_name }}</h2>
+            <p class="submission-date">{{ s.student.email }} — enviada el {{ s.submitted_at.strftime("%d/%m/%Y %H:%M") }}</p>
+            <p class="submission-text">{{ s.response_text }}</p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-state">Todavía no hay entregas para esta tarea.</p>
+    {% endif %}
 {% elif now > task.due_datetime %}
     <div class="alert alert-warning">El plazo de entrega para esta tarea ya venció. No puedes enviar una respuesta.</div>
 {% else %}

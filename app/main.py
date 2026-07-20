@@ -1,3 +1,8 @@
+"""
+TaskHub — Aplicación distribuida de entrega de tareas.
+Cada nodo (app1, app2, app3) ejecuta esta misma aplicación; NODE_NAME
+identifica al nodo que atendió la petición (útil para verificar el balanceo de NGINX).
+"""
 import os
 from datetime import datetime
 
@@ -10,7 +15,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, SessionLocal
 from models import Student, Task, Submission
 
 NODE_NAME = os.getenv("NODE_NAME", "app-desconocido")
@@ -28,6 +33,90 @@ try:
 except OperationalError as e:
     if "1050" not in str(e) and "already exists" not in str(e):
         raise
+
+# Sembrado automático de datos por defecto (estudiante, profesor, administrador y tareas demo)
+def seed_default_data():
+    db = SessionLocal()
+    try:
+        from datetime import datetime, timedelta
+        # 1. Estudiante Demo
+        if not db.query(Student).filter(Student.email == "demo@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Estudiante Demo",
+                email="demo@epn.edu.ec",
+                password_hash=password_hash,
+                role="student",
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 2. Profesor Demo
+        if not db.query(Student).filter(Student.email == "profesor@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Profesor Demo",
+                email="profesor@epn.edu.ec",
+                password_hash=password_hash,
+                role="teacher",
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 3. Administrador Demo
+        if not db.query(Student).filter(Student.email == "admin@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Administrador Demo",
+                email="admin@epn.edu.ec",
+                password_hash=password_hash,
+                role="teacher",  # Rol 'teacher' para que tenga permisos de gestión (crear tareas, ver entregas)
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 4. Tarea TSK-001
+        if not db.query(Task).filter(Task.code == "TSK-001").first():
+            db.add(Task(
+                code="TSK-001",
+                title="Introducción a Docker",
+                description="Investigar y resumir las ventajas de usar contenedores frente a máquinas virtuales.",
+                due_datetime=datetime.now() + timedelta(days=7),
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 5. Tarea TSK-002
+        if not db.query(Task).filter(Task.code == "TSK-002").first():
+            db.add(Task(
+                code="TSK-002",
+                title="Configurar balanceo de carga",
+                description="Configurar NGINX como balanceador de carga por pesos entre 3 nodos.",
+                due_datetime=datetime.now() + timedelta(hours=36),
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+    except Exception as e:
+        print(f"Error al sembrar datos por defecto: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Ejecutar el sembrado
+try:
+    seed_default_data()
+except Exception as e:
+    print(f"Error en la llamada de sembrado: {e}")
 
 app = FastAPI(title="TaskHub")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
@@ -89,6 +178,61 @@ def login_form(request: Request):
     )
 
 
+@app.get("/register", response_class=HTMLResponse)
+def register_form(request: Request):
+    if request.session.get("student_id"):
+        return RedirectResponse("/tasks")
+    return templates.TemplateResponse(
+        "register.html", {"request": request, "error": None, "node": NODE_NAME}
+    )
+
+
+@app.post("/register", response_class=HTMLResponse)
+def register(
+    request: Request,
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    full_name = full_name.strip()
+    email = email.strip().lower()
+
+    error = None
+    if len(full_name) < 2:
+        error = "Ingresa tu nombre completo."
+    elif "@" not in email:
+        error = "Ingresa un correo válido."
+    elif len(password) < 6:
+        error = "La contraseña debe tener al menos 6 caracteres."
+    elif db.query(Student).filter(Student.email == email).first():
+        error = "Ya existe una cuenta registrada con ese correo."
+
+    if error:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": error, "node": NODE_NAME,
+             "full_name": full_name, "email": email},
+        )
+
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    student = Student(full_name=full_name, email=email, password_hash=password_hash)
+    db.add(student)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Protección extra por si dos registros con el mismo correo llegan casi al mismo tiempo
+        db.rollback()
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "Ya existe una cuenta registrada con ese correo.",
+             "node": NODE_NAME, "full_name": full_name, "email": email},
+        )
+
+    request.session["student_id"] = student.id
+    return RedirectResponse("/tasks", status_code=303)
+
+
 @app.post("/login", response_class=HTMLResponse)
 def login(
     request: Request,
@@ -111,6 +255,131 @@ def login(
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login")
+
+
+@app.get("/register", response_class=HTMLResponse)
+def register_form(request: Request):
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request, "error": None, "node": NODE_NAME, "full_name": "", "email": ""},
+    )
+
+
+@app.post("/register", response_class=HTMLResponse)
+def register(
+    request: Request,
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    full_name = full_name.strip()
+    email = email.strip().lower()
+
+    error = None
+    if len(full_name) < 3:
+        error = "Ingresa tu nombre completo."
+    elif len(password) < 6:
+        error = "La contraseña debe tener al menos 6 caracteres."
+    elif password != confirm_password:
+        error = "Las contraseñas no coinciden."
+    elif db.query(Student).filter(Student.email == email).first():
+        error = "Ya existe una cuenta registrada con ese correo."
+
+    if error:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request, "error": error, "node": NODE_NAME,
+                "full_name": full_name, "email": email,
+            },
+        )
+
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    student = Student(full_name=full_name, email=email, password_hash=password_hash)
+    db.add(student)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Protección extra por si dos registros llegan casi al mismo tiempo con el mismo correo
+        db.rollback()
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request, "node": NODE_NAME,
+                "full_name": full_name, "email": email,
+                "error": "Ya existe una cuenta registrada con ese correo.",
+            },
+        )
+
+    db.refresh(student)
+    request.session["student_id"] = student.id
+    return RedirectResponse("/tasks", status_code=303)
+
+
+@app.get("/tasks/new", response_class=HTMLResponse)
+def new_task_form(request: Request, db: Session = Depends(get_db)):
+    student = current_student(request, db)
+    if not student:
+        return RedirectResponse("/login")
+    if student.role != "teacher":
+        return RedirectResponse("/tasks")
+    return templates.TemplateResponse(
+        "new_task.html", {"request": request, "student": student, "node": NODE_NAME, "error": None}
+    )
+
+
+@app.post("/tasks/new", response_class=HTMLResponse)
+def create_task(
+    request: Request,
+    code: str = Form(...),
+    title: str = Form(...),
+    description: str = Form(...),
+    due_datetime: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    student = current_student(request, db)
+    if not student:
+        return RedirectResponse("/login")
+    if student.role != "teacher":
+        return RedirectResponse("/tasks")
+
+    code = code.strip().upper()
+    title = title.strip()
+    description = description.strip()
+
+    error = None
+    try:
+        due_dt = datetime.strptime(due_datetime, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        due_dt = None
+        error = "Fecha y hora límite inválida."
+
+    if not error and db.query(Task).filter(Task.code == code).first():
+        error = "Ya existe una tarea con ese código."
+
+    if error:
+        return templates.TemplateResponse(
+            "new_task.html",
+            {"request": request, "student": student, "node": NODE_NAME, "error": error,
+             "code": code, "title": title, "description": description, "due_datetime": due_datetime},
+        )
+
+    task = Task(code=code, title=title, description=description, due_datetime=due_dt)
+    db.add(task)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return templates.TemplateResponse(
+            "new_task.html",
+            {"request": request, "student": student, "node": NODE_NAME,
+             "error": "Ya existe una tarea con ese código.",
+             "code": code, "title": title, "description": description, "due_datetime": due_datetime},
+        )
+
+    return RedirectResponse("/tasks", status_code=303)
 
 
 @app.get("/tasks", response_class=HTMLResponse)
@@ -145,6 +414,16 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
         .filter(Submission.task_id == task_id, Submission.student_id == student.id)
         .first()
     )
+
+    all_submissions = None
+    if student.role == "teacher":
+        all_submissions = (
+            db.query(Submission)
+            .filter(Submission.task_id == task_id)
+            .order_by(Submission.submitted_at)
+            .all()
+        )
+
     return templates.TemplateResponse(
         "task_detail.html",
         {
@@ -152,6 +431,7 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
             "student": student,
             "task": task,
             "submission": submission,
+            "all_submissions": all_submissions,
             "now": datetime.now(),
             "node": NODE_NAME,
             "error": None,
@@ -169,6 +449,8 @@ def submit_task(
     student = current_student(request, db)
     if not student:
         return RedirectResponse("/login")
+    if student.role == "teacher":
+        return RedirectResponse(f"/tasks/{task_id}")
 
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:

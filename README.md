@@ -87,7 +87,6 @@ Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distrib
 │   ├── main.py              # Rutas: login, tareas, entrega, health
 │   ├── models.py            # Modelos SQLAlchemy (Student, Task, Submission)
 │   ├── database.py          # Conexión a MySQL vía variables de entorno
-│   ├── seed.py               # Datos de prueba (estudiante + tareas)
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   ├── views/                # Plantillas Jinja2

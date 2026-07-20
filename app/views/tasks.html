@@ -5,6 +5,10 @@
 <h1>Tareas disponibles</h1>
 <p class="subtitle">Consulta el detalle de cada tarea y realiza tu entrega antes del plazo límite.</p>
 
+{% if student.role == "teacher" %}
+<a href="/tasks/new" class="btn-primary" style="display:inline-block; text-decoration:none; margin-bottom:24px;">+ Nueva tarea</a>
+{% endif %}
+
 <div class="task-grid">
     {% for tv in task_views %}
     <a class="task-card urgency-{{ tv.urgency }}" href="/tasks/{{ tv.task.id }}">
