@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, SessionLocal
 from models import Student, Task, Submission
 
 NODE_NAME = os.getenv("NODE_NAME", "app-desconocido")
@@ -33,6 +33,90 @@ try:
 except OperationalError as e:
     if "1050" not in str(e) and "already exists" not in str(e):
         raise
+
+# Sembrado automático de datos por defecto (estudiante, profesor, administrador y tareas demo)
+def seed_default_data():
+    db = SessionLocal()
+    try:
+        from datetime import datetime, timedelta
+        # 1. Estudiante Demo
+        if not db.query(Student).filter(Student.email == "demo@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Estudiante Demo",
+                email="demo@epn.edu.ec",
+                password_hash=password_hash,
+                role="student",
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 2. Profesor Demo
+        if not db.query(Student).filter(Student.email == "profesor@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Profesor Demo",
+                email="profesor@epn.edu.ec",
+                password_hash=password_hash,
+                role="teacher",
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 3. Administrador Demo
+        if not db.query(Student).filter(Student.email == "admin@epn.edu.ec").first():
+            password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
+            db.add(Student(
+                full_name="Administrador Demo",
+                email="admin@epn.edu.ec",
+                password_hash=password_hash,
+                role="teacher",  # Rol 'teacher' para que tenga permisos de gestión (crear tareas, ver entregas)
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 4. Tarea TSK-001
+        if not db.query(Task).filter(Task.code == "TSK-001").first():
+            db.add(Task(
+                code="TSK-001",
+                title="Introducción a Docker",
+                description="Investigar y resumir las ventajas de usar contenedores frente a máquinas virtuales.",
+                due_datetime=datetime.now() + timedelta(days=7),
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+
+        # 5. Tarea TSK-002
+        if not db.query(Task).filter(Task.code == "TSK-002").first():
+            db.add(Task(
+                code="TSK-002",
+                title="Configurar balanceo de carga",
+                description="Configurar NGINX como balanceador de carga por pesos entre 3 nodos.",
+                due_datetime=datetime.now() + timedelta(hours=36),
+            ))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+    except Exception as e:
+        print(f"Error al sembrar datos por defecto: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Ejecutar el sembrado
+try:
+    seed_default_data()
+except Exception as e:
+    print(f"Error en la llamada de sembrado: {e}")
 
 app = FastAPI(title="TaskHub")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)

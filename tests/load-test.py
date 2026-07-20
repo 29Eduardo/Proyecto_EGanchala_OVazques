@@ -8,18 +8,20 @@ Ejecutar:
 Luego abrir http://localhost:8089, definir el número de usuarios concurrentes
 y la tasa de generación ("spawn rate"), e iniciar la prueba.
 
-Nota: el usuario de prueba se crea con app/seed.py (demo@epn.edu.ec / 123456).
+Nota: el usuario de prueba se crea automáticamente al iniciar la aplicación (demo@epn.edu.ec / 123456).
 Para una prueba más realista con muchos estudiantes distintos en paralelo,
 conviene sembrar varios registros de estudiantes en la base de datos.
 """
 import random
+
 from locust import HttpUser, task, between
+
 
 class StudentUser(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):
-        # LOGIN CORRECTO (según tu código real)
+        """Cada usuario virtual inicia sesión una sola vez, igual que un estudiante real."""
         self.client.post("/login", data={
             "email": "demo@epn.edu.ec",
             "password": "123456",
@@ -27,22 +29,26 @@ class StudentUser(HttpUser):
 
     @task(3)
     def view_tasks(self):
+        """Consultar el listado de tareas disponibles."""
         self.client.get("/tasks", name="/tasks [listado]")
 
     @task(2)
     def view_task_detail(self):
+        """Consultar el detalle de una tarea específica."""
         task_id = random.choice([1, 2])
         self.client.get(f"/tasks/{task_id}", name="/tasks/[id]")
 
     @task(1)
     def submit_task(self):
+        """Intentar enviar una entrega (solo la primera vez tendrá éxito por estudiante/tarea)."""
         task_id = random.choice([1, 2])
         self.client.post(
             f"/tasks/{task_id}/submit",
-            data={"response_text": "Respuesta de prueba"},
+            data={"response_text": "Respuesta generada durante la prueba de carga."},
             name="/tasks/[id]/submit",
         )
 
     @task(1)
     def check_node(self):
+        """Permite verificar en los resultados qué nodo (app1/app2/app3) atendió cada petición."""
         self.client.get("/health", name="/health")
