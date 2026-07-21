@@ -183,16 +183,10 @@ Las pruebas se ejecutaron con [Locust](https://locust.io/):
 
 ```bash
 pip install locust
-locust -f locust/locustfile.py --host=http://localhost
+locust -f locust/load-test.py --host=http://localhost
 ```
 
 Resultados, gráficos y análisis de desempeño en el informe técnico.
-
-## Despliegue en producción
-
-La infraestructura completa está desplegada en un servidor con Docker Compose (no solo en local):
-
-🔗 **URL de la aplicación:** `http://<IP-o-dominio-del-servidor>`
   
 ## Equipo
 

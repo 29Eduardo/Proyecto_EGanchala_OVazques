@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Panel de Administración · TaskHub{% endblock %}
+{% block content %}
+<p class="eyebrow">Zona restringida</p>
+<h1>Panel de Administración</h1>
+<p class="subtitle">Gestiona los profesores y estudiantes del sistema desde este panel.</p>
+
+<!-- ===== Sección: Profesores ===== -->
+<section style="margin-bottom: 48px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
+        <h2 style="margin:0; font-size:1.1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary);">Profesores ({{ teachers|length }})</h2>
+    </div>
+
+    {% if teachers %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for t in teachers %}
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px;">
+            <div>
+                <span style="font-weight: 600; color: var(--text);">{{ t.full_name }}</span>
+                <span style="font-size: 0.82rem; color: var(--text-muted); margin-left: 10px;">{{ t.email }}</span>
+            </div>
+            <form method="post" action="/admin/delete-teacher/{{ t.id }}" onsubmit="return confirm('¿Eliminar al profesor {{ t.full_name }}? Esta acción no se puede deshacer.');">
+                <button type="submit" style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: 5px 14px; border-radius: var(--radius); font-size: 0.82rem; cursor: pointer; font-family: var(--font-body); font-weight: 600;">Eliminar</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state" style="text-align:center; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">No hay profesores registrados en el sistema.</p>
+    {% endif %}
+</section>
+
+<!-- ===== Sección: Estudiantes ===== -->
+<section>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
+        <h2 style="margin:0; font-size:1.1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--success);">Estudiantes ({{ students|length }})</h2>
+    </div>
+
+    {% if students %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for s in students %}
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; gap: 12px; flex-wrap: wrap;">
+            <div>
+                <span style="font-weight: 600; color: var(--text);">{{ s.full_name }}</span>
+                <span style="font-size: 0.82rem; color: var(--text-muted); margin-left: 10px;">{{ s.email }}</span>
+            </div>
+            <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                <form method="post" action="/admin/promote/{{ s.id }}" onsubmit="return confirm('¿Designar a {{ s.full_name }} como Profesor?');">
+                    <button type="submit" style="background: var(--primary); color:#fff; border:none; padding: 5px 14px; border-radius: var(--radius); font-size: 0.82rem; cursor: pointer; font-family: var(--font-body); font-weight: 600;">Designar Profesor</button>
+                </form>
+                <form method="post" action="/students/{{ s.id }}/delete" onsubmit="return confirm('¿Eliminar al estudiante {{ s.full_name }}? Esta acción no se puede deshacer.');">
+                    <button type="submit" style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: 5px 14px; border-radius: var(--radius); font-size: 0.82rem; cursor: pointer; font-family: var(--font-body); font-weight: 600;">Eliminar</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state" style="text-align:center; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">No hay estudiantes registrados en el sistema.</p>
+    {% endif %}
+</section>
+{% endblock %}

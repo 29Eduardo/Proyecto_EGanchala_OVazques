@@ -4,6 +4,7 @@ Cada nodo (app1, app2, app3) ejecuta esta misma aplicación; NODE_NAME
 identifica al nodo que atendió la petición (útil para verificar el balanceo de NGINX).
 """
 import os
+import re
 from datetime import datetime
 
 import bcrypt
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import Base, engine, get_db, SessionLocal
-from models import Student, Task, Submission
+from models import Student, Task, Submission, Assignment
 
 NODE_NAME = os.getenv("NODE_NAME", "app-desconocido")
 SECRET_KEY = os.getenv("SECRET_KEY", "cambia-esta-clave-en-produccion")
@@ -68,18 +69,27 @@ def seed_default_data():
                 db.rollback()
 
         # 3. Administrador Demo
-        if not db.query(Student).filter(Student.email == "admin@epn.edu.ec").first():
+        admin_user = db.query(Student).filter(Student.email == "admin@epn.edu.ec").first()
+        if not admin_user:
             password_hash = bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode()
             db.add(Student(
                 full_name="Administrador Demo",
                 email="admin@epn.edu.ec",
                 password_hash=password_hash,
-                role="teacher",  # Rol 'teacher' para que tenga permisos de gestión (crear tareas, ver entregas)
+                role="administrador",  # Rol de administrador del sistema
             ))
             try:
                 db.commit()
             except IntegrityError:
                 db.rollback()
+        else:
+            # Si el usuario admin ya existía previamente con otro rol, forzar actualización a "administrador"
+            if admin_user.role not in ("admin", "administrador"):
+                admin_user.role = "administrador"
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
 
         # 4. Tarea TSK-001
         if not db.query(Task).filter(Task.code == "TSK-001").first():
@@ -106,6 +116,27 @@ def seed_default_data():
                 db.commit()
             except IntegrityError:
                 db.rollback()
+
+        # Asignar tareas demo al Estudiante Demo por defecto
+        demo_student = db.query(Student).filter(Student.email == "demo@epn.edu.ec").first()
+        task1 = db.query(Task).filter(Task.code == "TSK-001").first()
+        task2 = db.query(Task).filter(Task.code == "TSK-002").first()
+
+        if demo_student and task1:
+            if not db.query(Assignment).filter(Assignment.student_id == demo_student.id, Assignment.task_id == task1.id).first():
+                db.add(Assignment(student_id=demo_student.id, task_id=task1.id, assigned_at=datetime.now()))
+                try:
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+
+        if demo_student and task2:
+            if not db.query(Assignment).filter(Assignment.student_id == demo_student.id, Assignment.task_id == task2.id).first():
+                db.add(Assignment(student_id=demo_student.id, task_id=task2.id, assigned_at=datetime.now()))
+                try:
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
     except Exception as e:
         print(f"Error al sembrar datos por defecto: {e}")
         db.rollback()
@@ -118,13 +149,30 @@ try:
 except Exception as e:
     print(f"Error en la llamada de sembrado: {e}")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = FastAPI(title="TaskHub")
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="views")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=None)
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "views"))
 
 
 # ---------- Helpers ----------
+
+def validate_password(password: str) -> str | None:
+    """Valida que la contraseña cumpla los requisitos mínimos de seguridad."""
+    if len(password) < 8:
+        return "La contraseña debe tener al menos 8 caracteres."
+    if not re.search(r"[a-z]", password):
+        return "La contraseña debe incluir al menos una letra minúscula."
+    if not re.search(r"[A-Z]", password):
+        return "La contraseña debe incluir al menos una letra mayúscula."
+    if not re.search(r"[0-9]", password):
+        return "La contraseña debe incluir al menos un número."
+    if not re.search(r"[^a-zA-Z0-9]", password):
+        return "La contraseña debe incluir al menos un carácter especial (ej. !@#$%^&*)."
+    return None
+
 
 def current_student(request: Request, db: Session):
     student_id = request.session.get("student_id")
@@ -178,61 +226,6 @@ def login_form(request: Request):
     )
 
 
-@app.get("/register", response_class=HTMLResponse)
-def register_form(request: Request):
-    if request.session.get("student_id"):
-        return RedirectResponse("/tasks")
-    return templates.TemplateResponse(
-        "register.html", {"request": request, "error": None, "node": NODE_NAME}
-    )
-
-
-@app.post("/register", response_class=HTMLResponse)
-def register(
-    request: Request,
-    full_name: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    full_name = full_name.strip()
-    email = email.strip().lower()
-
-    error = None
-    if len(full_name) < 2:
-        error = "Ingresa tu nombre completo."
-    elif "@" not in email:
-        error = "Ingresa un correo válido."
-    elif len(password) < 6:
-        error = "La contraseña debe tener al menos 6 caracteres."
-    elif db.query(Student).filter(Student.email == email).first():
-        error = "Ya existe una cuenta registrada con ese correo."
-
-    if error:
-        return templates.TemplateResponse(
-            "register.html",
-            {"request": request, "error": error, "node": NODE_NAME,
-             "full_name": full_name, "email": email},
-        )
-
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    student = Student(full_name=full_name, email=email, password_hash=password_hash)
-    db.add(student)
-    try:
-        db.commit()
-    except IntegrityError:
-        # Protección extra por si dos registros con el mismo correo llegan casi al mismo tiempo
-        db.rollback()
-        return templates.TemplateResponse(
-            "register.html",
-            {"request": request, "error": "Ya existe una cuenta registrada con ese correo.",
-             "node": NODE_NAME, "full_name": full_name, "email": email},
-        )
-
-    request.session["student_id"] = student.id
-    return RedirectResponse("/tasks", status_code=303)
-
-
 @app.post("/login", response_class=HTMLResponse)
 def login(
     request: Request,
@@ -259,6 +252,8 @@ def logout(request: Request):
 
 @app.get("/register", response_class=HTMLResponse)
 def register_form(request: Request):
+    if request.session.get("student_id"):
+        return RedirectResponse("/tasks")
     return templates.TemplateResponse(
         "register.html",
         {"request": request, "error": None, "node": NODE_NAME, "full_name": "", "email": ""},
@@ -278,14 +273,18 @@ def register(
     email = email.strip().lower()
 
     error = None
-    if len(full_name) < 3:
+    if len(full_name) < 2:
         error = "Ingresa tu nombre completo."
-    elif len(password) < 6:
-        error = "La contraseña debe tener al menos 6 caracteres."
+    elif "@" not in email:
+        error = "Ingresa un correo válido."
     elif password != confirm_password:
         error = "Las contraseñas no coinciden."
-    elif db.query(Student).filter(Student.email == email).first():
-        error = "Ya existe una cuenta registrada con ese correo."
+    else:
+        password_err = validate_password(password)
+        if password_err:
+            error = password_err
+        elif db.query(Student).filter(Student.email == email).first():
+            error = "Ya existe una cuenta registrada con ese correo."
 
     if error:
         return templates.TemplateResponse(
@@ -323,7 +322,7 @@ def new_task_form(request: Request, db: Session = Depends(get_db)):
     student = current_student(request, db)
     if not student:
         return RedirectResponse("/login")
-    if student.role != "teacher":
+    if student.role not in ("teacher", "admin", "administrador"):
         return RedirectResponse("/tasks")
     return templates.TemplateResponse(
         "new_task.html", {"request": request, "student": student, "node": NODE_NAME, "error": None}
@@ -342,7 +341,7 @@ def create_task(
     student = current_student(request, db)
     if not student:
         return RedirectResponse("/login")
-    if student.role != "teacher":
+    if student.role not in ("teacher", "admin", "administrador"):
         return RedirectResponse("/tasks")
 
     code = code.strip().upper()
@@ -390,7 +389,16 @@ def list_tasks(request: Request, db: Session = Depends(get_db)):
 
     now = datetime.now()
     submitted_ids = {s.task_id for s in student.submissions}
-    tasks = db.query(Task).order_by(Task.due_datetime).all()
+    if student.role in ("teacher", "admin", "administrador"):
+        tasks = db.query(Task).order_by(Task.due_datetime).all()
+    else:
+        tasks = (
+            db.query(Task)
+            .join(Assignment)
+            .filter(Assignment.student_id == student.id)
+            .order_by(Task.due_datetime)
+            .all()
+        )
     task_views = [build_task_view(t, submitted_ids, now) for t in tasks]
 
     return templates.TemplateResponse(
@@ -409,6 +417,12 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
     if not task:
         return RedirectResponse("/tasks")
 
+    # Si es estudiante, verificar que tenga asignada la tarea
+    if student.role not in ("teacher", "admin", "administrador"):
+        assignment = db.query(Assignment).filter(Assignment.task_id == task_id, Assignment.student_id == student.id).first()
+        if not assignment:
+            return RedirectResponse("/tasks")
+
     submission = (
         db.query(Submission)
         .filter(Submission.task_id == task_id, Submission.student_id == student.id)
@@ -416,13 +430,25 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
     )
 
     all_submissions = None
-    if student.role == "teacher":
+    all_students_status = None
+    if student.role in ("teacher", "admin", "administrador"):
         all_submissions = (
             db.query(Submission)
             .filter(Submission.task_id == task_id)
             .order_by(Submission.submitted_at)
             .all()
         )
+        
+        # Obtener todos los estudiantes y su estado de asignación
+        students_list = db.query(Student).filter(Student.role == "student").order_by(Student.full_name).all()
+        assigned_student_ids = {a.student_id for a in db.query(Assignment).filter(Assignment.task_id == task_id).all()}
+        all_students_status = [
+            {
+                "student": s,
+                "is_assigned": s.id in assigned_student_ids
+            }
+            for s in students_list
+        ]
 
     return templates.TemplateResponse(
         "task_detail.html",
@@ -432,6 +458,7 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
             "task": task,
             "submission": submission,
             "all_submissions": all_submissions,
+            "all_students_status": all_students_status,
             "now": datetime.now(),
             "node": NODE_NAME,
             "error": None,
@@ -449,8 +476,13 @@ def submit_task(
     student = current_student(request, db)
     if not student:
         return RedirectResponse("/login")
-    if student.role == "teacher":
+    if student.role in ("teacher", "admin", "administrador"):
         return RedirectResponse(f"/tasks/{task_id}")
+
+    # Verificar asignación
+    assignment = db.query(Assignment).filter(Assignment.task_id == task_id, Assignment.student_id == student.id).first()
+    if not assignment:
+        return RedirectResponse("/tasks")
 
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
@@ -500,3 +532,154 @@ def submit_task(
         )
 
     return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+
+
+@app.post("/tasks/{task_id}/assign", response_class=HTMLResponse)
+def assign_task(
+    task_id: int,
+    request: Request,
+    student_ids: list[int] = Form(default=[]),
+    db: Session = Depends(get_db),
+):
+    student = current_student(request, db)
+    if not student:
+        return RedirectResponse("/login")
+    if student.role not in ("teacher", "admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return RedirectResponse("/tasks")
+
+    # Obtener asignaciones actuales
+    current_assignments = db.query(Assignment).filter(Assignment.task_id == task_id).all()
+    current_assigned_ids = {a.student_id for a in current_assignments}
+
+    target_student_ids = set(student_ids)
+
+    # Eliminar asignaciones desmarcadas
+    for a in current_assignments:
+        if a.student_id not in target_student_ids:
+            db.delete(a)
+
+    # Agregar nuevas asignaciones
+    for sid in target_student_ids:
+        if sid not in current_assigned_ids:
+            s = db.query(Student).filter(Student.id == sid, Student.role == "student").first()
+            if s:
+                db.add(Assignment(student_id=sid, task_id=task_id, assigned_at=datetime.now()))
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+
+    return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+
+
+@app.post("/tasks/{task_id}/delete", response_class=HTMLResponse)
+def delete_task(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Permite a profesores y administradores eliminar una tarea y todos sus datos relacionados."""
+    student = current_student(request, db)
+    if not student:
+        return RedirectResponse("/login")
+    if student.role not in ("teacher", "admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if task:
+        db.delete(task)
+        db.commit()
+    return RedirectResponse("/tasks", status_code=303)
+
+
+@app.post("/students/{student_id}/delete", response_class=HTMLResponse)
+def delete_student(
+    student_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Permite a profesores y administradores eliminar un estudiante (solo rol student)."""
+    current = current_student(request, db)
+    if not current:
+        return RedirectResponse("/login")
+    if current.role not in ("teacher", "admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    target = db.query(Student).filter(Student.id == student_id, Student.role == "student").first()
+    if target:
+        db.delete(target)
+        db.commit()
+
+    if current.role in ("admin", "administrador"):
+        return RedirectResponse("/admin", status_code=303)
+    return RedirectResponse("/tasks", status_code=303)
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_panel(request: Request, db: Session = Depends(get_db)):
+    """Panel exclusivo para administradores: gestión de profesores y estudiantes."""
+    student = current_student(request, db)
+    if not student:
+        return RedirectResponse("/login")
+    if student.role not in ("admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    teachers = db.query(Student).filter(Student.role == "teacher").order_by(Student.full_name).all()
+    students = db.query(Student).filter(Student.role == "student").order_by(Student.full_name).all()
+
+    return templates.TemplateResponse(
+        "admin.html",
+        {
+            "request": request,
+            "student": student,
+            "teachers": teachers,
+            "students": students,
+            "node": NODE_NAME,
+            "success": request.session.pop("success", None),
+        },
+    )
+
+
+@app.post("/admin/promote/{user_id}", response_class=HTMLResponse)
+def promote_to_teacher(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Admin promueve un estudiante al rol de profesor."""
+    current = current_student(request, db)
+    if not current:
+        return RedirectResponse("/login")
+    if current.role not in ("admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    target = db.query(Student).filter(Student.id == user_id, Student.role == "student").first()
+    if target:
+        target.role = "teacher"
+        db.commit()
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/delete-teacher/{user_id}", response_class=HTMLResponse)
+def delete_teacher(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Admin elimina un profesor del sistema."""
+    current = current_student(request, db)
+    if not current:
+        return RedirectResponse("/login")
+    if current.role not in ("admin", "administrador"):
+        return RedirectResponse("/tasks")
+
+    target = db.query(Student).filter(Student.id == user_id, Student.role == "teacher").first()
+    if target:
+        db.delete(target)
+        db.commit()
+    return RedirectResponse("/admin", status_code=303)

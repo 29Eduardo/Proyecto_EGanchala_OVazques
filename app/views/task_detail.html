@@ -8,6 +8,12 @@
 <p class="subtitle">{{ task.description }}</p>
 <p class="due-date">Fecha y hora límite: <strong>{{ task.due_datetime.strftime("%d/%m/%Y %H:%M") }}</strong></p>
 
+{% if student.role in ("teacher", "admin", "administrador") %}
+<form method="post" action="/tasks/{{ task.id }}/delete" style="display:inline;" onsubmit="return confirm('Eliminar esta tarea y todas sus entregas? Esta accion no se puede deshacer.');">
+    <button type="submit" style="background: var(--danger); color:#fff; border:none; padding: 7px 18px; border-radius: var(--radius); font-size:0.85rem; cursor:pointer; font-family: var(--font-body); font-weight:600; margin-bottom: 16px;">Eliminar tarea</button>
+</form>
+{% endif %}
+
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
@@ -19,7 +25,7 @@
         <p class="submission-text">{{ submission.response_text }}</p>
         <p class="submission-date">Enviada el {{ submission.submitted_at.strftime("%d/%m/%Y %H:%M") }}</p>
     </div>
-{% elif student.role == "teacher" %}
+{% elif student.role in ("teacher", "admin", "administrador") %}
     <p class="eyebrow">Entregas de estudiantes ({{ all_submissions|length }})</p>
     {% if all_submissions %}
         {% for s in all_submissions %}
@@ -32,6 +38,33 @@
     {% else %}
         <p class="empty-state">Todavía no hay entregas para esta tarea.</p>
     {% endif %}
+
+    <div class="assignment-box" style="margin-top: 32px; background: var(--surface); border: 1px solid var(--border); padding: 24px; border-radius: var(--radius);">
+        <p class="eyebrow">Asignación de Tarea</p>
+        <h2 style="margin-bottom: 8px;">Asignar esta tarea a estudiantes</h2>
+        <p class="subtitle" style="margin-bottom: 20px; font-size: 0.9rem; color: var(--text-muted);">Selecciona los estudiantes que deben realizar esta tarea. Los estudiantes no seleccionados no la verán en su listado.</p>
+        
+        <form method="post" action="/tasks/{{ task.id }}/assign" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="student-assign-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); padding: 12px; border-radius: var(--radius); background: var(--bg);">
+                {% for item in all_students_status %}
+                <div class="student-assign-item" style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 12px;">
+                    <input type="checkbox" id="student_{{ item.student.id }}" name="student_ids" value="{{ item.student.id }}" {% if item.is_assigned %}checked{% endif %} style="width: auto; margin: 0; cursor: pointer;">
+                    <label for="student_{{ item.student.id }}" style="margin: 0; cursor: pointer; display: flex; flex-direction: column; width: 100%;">
+                        <span style="font-weight: 500; color: var(--text);">{{ item.student.full_name }}</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">{{ item.student.email }}</span>
+                    </label>
+                </div>
+                {% else %}
+                <p class="empty-state" style="padding: 12px 0; margin: 0; text-align: center; color: var(--text-muted);">No hay estudiantes registrados en el sistema.</p>
+                {% endfor %}
+            </div>
+            {% if all_students_status %}
+            <div>
+                <button type="submit" class="btn-primary" style="max-width: 200px;">Guardar Asignaciones</button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
 {% elif now > task.due_datetime %}
     <div class="alert alert-warning">El plazo de entrega para esta tarea ya venció. No puedes enviar una respuesta.</div>
 {% else %}

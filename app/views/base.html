@@ -13,7 +13,14 @@
         <a class="brand" href="/tasks">TaskHub</a>
         {% if student %}
         <nav class="topbar-nav">
-            <span class="user-pill">{{ student.full_name }}</span>
+            {% if student.role in ("admin", "administrador") %}
+            <a href="/admin" class="btn-admin" style="font-size:0.85rem; background: var(--danger); color: #fff; padding: 6px 14px; border-radius: 999px; font-weight:600;">⚙ Panel Admin</a>
+            {% endif %}
+            <span class="user-pill">
+                {{ student.full_name }}
+                {% if student.role == "teacher" %}<span style="font-size:0.7rem;color:var(--primary);margin-left:4px;">[Profesor]</span>{% endif %}
+                {% if student.role in ("admin", "administrador") %}<span style="font-size:0.7rem;color:var(--danger);margin-left:4px;">[Admin]</span>{% endif %}
+            </span>
             <a href="/logout" class="link-muted">Cerrar sesión</a>
         </nav>
         {% endif %}

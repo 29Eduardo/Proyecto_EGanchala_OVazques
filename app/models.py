@@ -12,9 +12,10 @@ class Student(Base):
     full_name = Column(String(120), nullable=False)
     email = Column(String(120), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), nullable=False, default="student")  # "student" o "teacher"
+    role = Column(String(20), nullable=False, default="student")  # "student", "teacher", "admin" o "administrador"
 
-    submissions = relationship("Submission", back_populates="student")
+    submissions = relationship("Submission", back_populates="student", cascade="all, delete-orphan")
+    assignments = relationship("Assignment", back_populates="student", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -26,7 +27,8 @@ class Task(Base):
     description = Column(Text, nullable=False)
     due_datetime = Column(DateTime, nullable=False)
 
-    submissions = relationship("Submission", back_populates="task")
+    submissions = relationship("Submission", back_populates="task", cascade="all, delete-orphan")
+    assignments = relationship("Assignment", back_populates="task", cascade="all, delete-orphan")
 
 
 class Submission(Base):
@@ -44,3 +46,18 @@ class Submission(Base):
 
     student = relationship("Student", back_populates="submissions")
     task = relationship("Task", back_populates="submissions")
+
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+    __table_args__ = (
+        UniqueConstraint("student_id", "task_id", name="unique_assignment"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    assigned_at = Column(DateTime, nullable=False)
+
+    student = relationship("Student", back_populates="assignments")
+    task = relationship("Task", back_populates="assignments")
