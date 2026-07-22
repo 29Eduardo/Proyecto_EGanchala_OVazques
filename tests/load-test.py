@@ -8,9 +8,6 @@ Ejecutar:
 Luego abrir http://localhost:8089, definir el número de usuarios concurrentes
 y la tasa de generación ("spawn rate"), e iniciar la prueba.
 
-Nota: el usuario de prueba se crea automáticamente al iniciar la aplicación (demo@epn.edu.ec / 123456).
-Para una prueba más realista con muchos estudiantes distintos en paralelo,
-conviene sembrar varios registros de estudiantes en la base de datos.
 """
 import random
 
