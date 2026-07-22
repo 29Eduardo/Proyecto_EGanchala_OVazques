@@ -153,6 +153,25 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI(title="TaskHub")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=None)
+@app.middleware("http")
+async def force_session_only_cookie(request: Request, call_next):
+    response = await call_next(request)
+    raw_cookies = response.headers.getlist("set-cookie")
+    if raw_cookies:
+        cleaned = []
+        for cookie in raw_cookies:
+            if cookie.startswith("session="):
+                parts = [
+                    p for p in cookie.split("; ")
+                    if not p.lower().startswith("max-age=")
+                    and not p.lower().startswith("expires=")
+                ]
+                cookie = "; ".join(parts)
+            cleaned.append(cookie)
+        del response.headers["set-cookie"]
+        for cookie in cleaned:
+            response.headers.append("set-cookie", cookie)
+    return response
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "views"))
 
