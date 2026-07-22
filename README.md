@@ -22,6 +22,7 @@ Proyecto final — Aplicaciones Distribuidas, Escuela Politécnica Nacional, 202
 - [Variables de entorno](#variables-de-entorno)
 - [Balanceo de carga (NGINX)](#balanceo-de-carga-nginx)
 - [Replicación de base de datos](#replicación-de-base-de-datos)
+- [Sesión de usuario y cookies](#sesión-de-usuario-y-cookies)
 - [Pruebas de carga](#pruebas-de-carga)
 - [Despliegue en producción](#despliegue-en-producción)
 - [Equipo](#equipo)
@@ -56,23 +57,25 @@ Proyecto final — Aplicaciones Distribuidas, Escuela Politécnica Nacional, 202
                  └───────────────┘
 ```
 
-Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distribuye el tráfico entre ellos de forma proporcional a un peso asignado según su capacidad (ver [Balanceo de carga](#balanceo-de-carga-nginx)). Todas las escrituras van al nodo maestro de MySQL, que replica en tiempo real hacia un nodo esclavo de solo lectura.
+Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distribuye el tráfico entre ellos de forma proporcional a un peso asignado según su capacidad (ver [Balanceo de carga](#balanceo-de-carga-nginx)). Todas las escrituras van al nodo maestro de MySQL, que replica en tiempo real hacia un nodo esclavo (la replicación configurada en este proyecto es **bidireccional**: ambos nodos aceptan escrituras y se replican entre sí, ver [Replicación de base de datos](#replicación-de-base-de-datos)).
 
 ## Funcionalidades
 
-- [x] Inicio de sesión para estudiantes
+- [x] Registro e inicio de sesión para estudiantes, profesores y administradores
 - [x] Consulta de tareas disponibles en tiempo real (título, código, descripción, fecha/hora límite)
 - [x] Entrega de tareas mediante respuesta de texto
 - [x] Validación de fecha y hora límite de entrega
 - [x] Restricción de una única entrega por tarea y estudiante
 - [x] Visualización de la tarea enviada (título + respuesta)
+- [x] Asignación de tareas a estudiantes específicos (profesores/administradores)
+- [x] Panel de administración: gestión de profesores y estudiantes
 
 ## Tecnologías
 
 | Capa | Tecnología |
 |---|---|
-| Backend | Python — [FastAPI / Flask] |
-| Base de datos | MySQL 8.0 (master-slave) |
+| Backend | Python — FastAPI |
+| Base de datos | MySQL 8.0 (replicación master-slave bidireccional) |
 | ORM | SQLAlchemy |
 | Balanceador de carga | NGINX |
 | Contenedores | Docker + Docker Compose |
@@ -83,30 +86,40 @@ Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distrib
 
 ```
 .
-├── app/                     # Código fuente de la aplicación web (Python/FastAPI)
-│   ├── main.py              # Rutas: login, tareas, entrega, health
-│   ├── models.py            # Modelos SQLAlchemy (Student, Task, Submission)
-│   ├── database.py          # Conexión a MySQL vía variables de entorno
+├── app/                      # Código fuente de la aplicación web (Python/FastAPI)
+│   ├── main.py                # Rutas: login, registro, tareas, entrega, admin, health
+│   ├── models.py               # Modelos SQLAlchemy (Student, Task, Submission, Assignment)
+│   ├── database.py             # Conexión a MySQL vía variables de entorno
 │   ├── requirements.txt
 │   ├── Dockerfile
-│   ├── views/                # Plantillas Jinja2
+│   ├── views/                  # Plantillas Jinja2
 │   │   ├── base.html
 │   │   ├── login.html
+│   │   ├── register.html
 │   │   ├── tasks.html
-│   │   └── task_detail.html
+│   │   ├── task_detail.html
+│   │   ├── new_task.html
+│   │   └── admin.html
 │   └── static/
 │       └── style.css
 ├── nginx/
-│   └── nginx.conf           # Configuración del balanceador (pesos)
+│   └── nginx.conf              # Configuración del balanceador (pesos)
 ├── mysql/
-│   ├── master/my.cnf
-│   └── slave/my.cnf
+│   ├── master/
+│   │   ├── Dockerfile
+│   │   ├── my.cnf
+│   │   └── init.sql
+│   ├── slave/
+│   │   ├── Dockerfile
+│   │   ├── my.cnf
+│   │   └── init.sql.template
+│   └── replica-setup.sh        # Configura la replicación bidireccional al levantar el entorno
 ├── tests/
-│   └── load-test.py         # Script de pruebas de carga
-├── docs/
-│   └── informe-tecnico.md   # Informe técnico del proyecto
+│   ├── check_balance.py        # Verifica el reparto de tráfico entre nodos
+│   ├── load-test.py            # Pruebas de carga con Locust
+│   └── test_roles_and_passwords.py
 ├── docker-compose.yml
-├── .env
+├── .env                        # No se sube al repositorio (ver .gitignore)
 ├── .gitignore
 └── README.md
 ```
@@ -120,12 +133,15 @@ Los tres nodos de aplicación ejecutan la **misma imagen Docker**. NGINX distrib
 
 ```bash
 # 1. Clonar el repositorio
-https://github.com/29Eduardo/Proyecto_EGanchala_OVazques.git
+git clone https://github.com/29Eduardo/Proyecto_EGanchala_OVazques.git
+cd Proyecto_EGanchala_OVazques
 
-# 2. Levantar toda la infraestructura
+# 2. Crear el archivo .env en la raíz del proyecto (ver sección "Variables de entorno")
+
+# 3. Levantar toda la infraestructura
 docker compose up -d --build
 
-# 3. Verificar que todos los contenedores estén corriendo
+# 4. Verificar que todos los contenedores estén corriendo
 docker compose ps
 ```
 
@@ -138,16 +154,20 @@ docker compose down -v
 
 ## Variables de entorno
 
-| Variable | Descripción |
-|---|---|
-| `DB_ROOT_PASSWORD` | Contraseña root de MySQL |
-| `DB_NAME` | Nombre de la base de datos |
-| `DB_USER` / `DB_PASSWORD` | Credenciales de la aplicación |
-| `REPL_USER` / `REPL_PASSWORD` | Credenciales del usuario de replicación |
-| `SECRET_KEY` | Clave para firmar sesiones/JWT |
+El proyecto se configura mediante un archivo **`.env`** en la raíz del repositorio. Este archivo **no se sube a git** (ver `.gitignore`), así que cada quien debe crear el suyo localmente.
 
-> El archivo `.env` **no** se sube al repositorio (ver `.gitignore`). Usen `.env.example` como plantilla.
+Ejemplo de `.env` para desarrollo/pruebas:
 
+```env
+# Base de datos
+DB_ROOT_PASSWORD="Contraseña del usuario"
+DB_NAME="Nombre de la base de datos de la aplicación "
+DB_USER="Credenciales del usuario de aplicación; se crean automáticamente en ambos nodos de MySQL"
+DB_PASSWORD="Clave secreta"
+
+# Aplicación
+SECRET_KEY=8xO7vD......
+```
 ## Balanceo de carga (NGINX)
 
 NGINX distribuye las peticiones entre los 3 nodos usando pesos (`weight`) proporcionales a la capacidad asignada a cada contenedor:
@@ -160,40 +180,39 @@ upstream app_backend {
 }
 ```
 
-Configuración completa en [`nginx/nginx.conf`](./nginx/nginx.conf). La evidencia de la distribución proporcional del tráfico (obtenida con Locust) está documentada en el informe técnico.
+Configuración completa en [`nginx/nginx.conf`](./nginx/nginx.conf). La evidencia de la distribución proporcional del tráfico (obtenida con `tests/check_balance.py` y Locust) está documentada en el informe técnico.
 
 ## Replicación de base de datos
 
-- **Master:** recibe todas las escrituras, tiene `log-bin` habilitado.
-- **Slave:** replica en tiempo real desde el master mediante binlog replication.
+- **Maestro (`mysql-master`)** y **esclavo (`mysql-slave`)** se replican mutuamente mediante binlog + GTID (replicación **bidireccional**: ambos aceptan escrituras).
+- El contenedor `replica-setup` configura automáticamente la replicación en ambos sentidos al iniciar el entorno (ver [`mysql/replica-setup.sh`](./mysql/replica-setup.sh)).
+- Para evitar colisiones de claves primarias entre nodos, cada uno usa un offset distinto de `auto_increment` (maestro: IDs impares, esclavo: IDs pares).
 
-Verificación rápida:
+Verificación rápida (en cualquiera de los dos nodos):
 ```sql
--- En el slave
 SHOW REPLICA STATUS\G
 -- Replica_IO_Running: Yes
 -- Replica_SQL_Running: Yes
 ```
 
 Detalle completo del proceso de configuración en el informe técnico.
-
 ## Pruebas de carga
 
 Las pruebas se ejecutaron con [Locust](https://locust.io/):
 
 ```bash
 pip install locust
-locust -f locust/load-test.py --host=http://localhost
+locust -f tests/load-test.py --host=http://localhost
 ```
 
 Resultados, gráficos y análisis de desempeño en el informe técnico.
-  
+
 ## Equipo
 
 | Integrante | GitHub |
 |---|---|
-| Eduardo Ganchala | 29Eduardo(https://github.com/29Eduardo) |
-| Oscar Vasquez  | xOscar(https://github.com/Oscar-byte-c) |
+| Eduardo Ganchala | [29Eduardo](https://github.com/29Eduardo) |
+| Oscar Vasquez  | [xOscar](https://github.com/Oscar-byte-c) |
 
 **Asignatura:** Aplicaciones Distribuidas — **Profesora:** Ing. Vanessa Guevara — **Período:** 2026-A
 
